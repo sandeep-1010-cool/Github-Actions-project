@@ -40,13 +40,11 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '18'
-          cache: 'npm'
-          cache-dependency-path: pulumi_project/package-lock.json
 
       - name: Install dependencies
         run: |
           cd pulumi_project
-          npm ci
+          npm install
 
       - name: Install Pulumi
         uses: pulumi/setup-pulumi@v2
