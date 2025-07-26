@@ -1,8 +1,21 @@
 {
     "name": "pp-2",
     "main": "index.ts",
+    "scripts": {
+        "test": "echo 'No tests specified'",
+        "lint": "eslint . --ext .ts",
+        "format": "prettier --write .",
+        "format:check": "prettier --check .",
+        "type-check": "tsc --noEmit",
+        "security-audit": "npm audit --audit-level moderate",
+        "validate": "pulumi validate"
+    },
     "devDependencies": {
         "@types/node": "^18",
+        "@typescript-eslint/eslint-plugin": "^6.0.0",
+        "@typescript-eslint/parser": "^6.0.0",
+        "eslint": "^8.0.0",
+        "prettier": "^3.0.0",
         "typescript": "^5.0.0"
     },
     "dependencies": {
