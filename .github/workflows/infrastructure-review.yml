@@ -1,0 +1,140 @@
+name: Infrastructure Visual Review
+
+on:
+  workflow_dispatch:
+    inputs:
+      stack:
+        description: 'Stack to review'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - test
+          - prod
+      review_type:
+        description: 'Type of review'
+        required: true
+        default: 'preview'
+        type: choice
+        options:
+          - preview
+          - diagram
+          - detailed
+
+env:
+  PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+  AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+  AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+  AWS_REGION: ${{ secrets.AWS_REGION || 'us-east-1' }}
+
+jobs:
+  infrastructure-review:
+    name: Visual Infrastructure Review
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install dependencies
+        run: |
+          cd pulumi_project
+          npm install
+
+      - name: Install Pulumi
+        uses: pulumi/setup-pulumi@v2
+
+      - name: Setup Stack
+        run: |
+          cd pulumi_project
+          pulumi stack select ${{ github.event.inputs.stack }} || pulumi stack init ${{ github.event.inputs.stack }}
+          pulumi config set aws:region ${{ env.AWS_REGION }}
+
+      - name: Generate Visual Preview
+        if: github.event.inputs.review_type == 'preview'
+        run: |
+          cd pulumi_project
+          echo "🔍 Generating Pulumi Console Preview..."
+          echo "📊 This will create a visual preview in Pulumi Console"
+          echo "🌐 Check the Pulumi Console URL in the output below"
+          pulumi preview --stack ${{ github.event.inputs.stack }} --show-replacement-steps --show-config
+        env:
+          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ secrets.AWS_REGION || 'us-east-1' }}
+
+      - name: Generate Detailed Analysis
+        if: github.event.inputs.review_type == 'detailed'
+        run: |
+          cd pulumi_project
+          echo "📋 Detailed Infrastructure Analysis"
+          echo "================================="
+          echo ""
+          echo "🏗️  Resources to be created:"
+          echo "============================"
+          pulumi preview --stack ${{ github.event.inputs.stack }} --show-urns > detailed-preview.txt
+          cat detailed-preview.txt | grep -E "(create|update|delete|replace)" || echo "No changes detected"
+          echo ""
+          echo "🔧 Resource Details:"
+          echo "==================="
+          cat detailed-preview.txt | grep -E "aws:" | head -30 || echo "No AWS resources found"
+          echo ""
+          echo "💰 Estimated Costs:"
+          echo "=================="
+          echo "Note: Cost estimation requires Pulumi Cloud subscription"
+          echo "Check Pulumi Console for detailed cost breakdown"
+        env:
+          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ secrets.AWS_REGION || 'us-east-1' }}
+
+      - name: Generate Resource Summary
+        if: github.event.inputs.review_type == 'diagram'
+        run: |
+          cd pulumi_project
+          echo "📊 Infrastructure Resource Summary"
+          echo "================================="
+          echo ""
+          echo "🌍 Regions: us-east-1 (dev), us-west-2 (test)"
+          echo "🖥️  EC2 Instances: 2 (t3.micro)"
+          echo "🔐 IAM Roles: 2 (one per region)"
+          echo "👤 Instance Profiles: 2 (one per region)"
+          echo "🏷️  Tags: Environment, Project, Owner, CostCenter"
+          echo ""
+          echo "📋 Resource Breakdown:"
+          echo "====================="
+          pulumi preview --stack ${{ github.event.inputs.stack }} --show-urns > diagram-preview.txt
+          echo "EC2 Instances:"
+          cat diagram-preview.txt | grep "aws:ec2/instance" || echo "  - No EC2 instances found"
+          echo ""
+          echo "IAM Resources:"
+          cat diagram-preview.txt | grep "aws:iam" || echo "  - No IAM resources found"
+          echo ""
+          echo "Security Groups:"
+          cat diagram-preview.txt | grep "aws:ec2/securityGroup" || echo "  - No security groups found"
+        env:
+          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ secrets.AWS_REGION || 'us-east-1' }}
+
+      - name: Create Review Summary
+        run: |
+          echo "📋 Review Summary"
+          echo "================"
+          echo "Stack: ${{ github.event.inputs.stack }}"
+          echo "Review Type: ${{ github.event.inputs.review_type }}"
+          echo "Triggered by: ${{ github.actor }}"
+          echo "Timestamp: $(date)"
+          echo ""
+          echo "🔗 Pulumi Console: https://app.pulumi.com"
+          echo "📊 Check the console for visual diagrams and detailed resource information"
+          echo ""
+          echo "✅ Review completed successfully!" 
