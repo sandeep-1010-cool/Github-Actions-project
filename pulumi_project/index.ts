@@ -4,7 +4,7 @@ import * as pulumi from "@pulumi/pulumi";
 // Create an S3 bucket with a unique name
 const bucket = new aws.s3.Bucket("my-bucket", {
     // Let Pulumi generate a unique name
-    bucket: pulumi.interpolate`my-unique-bucket-${pulumi.getStack()}-${pulumi.getProject()}`,
+    bucket: pulumi.interpolate`my-bucket-${pulumi.getStack()}-${pulumi.getProject()}`,
 });
 
 // Export the bucket name
