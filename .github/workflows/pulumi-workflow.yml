@@ -75,6 +75,7 @@ jobs:
         run: |
           cd pulumi_project
           pulumi stack select dev || pulumi stack init dev
+          pulumi config set aws:region ${{ env.AWS_REGION }}
 
       - name: Preview changes
         run: |
@@ -113,6 +114,7 @@ jobs:
         run: |
           cd pulumi_project
           pulumi stack select dev || pulumi stack init dev
+          pulumi config set aws:region ${{ env.AWS_REGION }}
 
       - name: Deploy to dev
         run: |
@@ -152,6 +154,7 @@ jobs:
         run: |
           cd pulumi_project
           pulumi stack select dev || pulumi stack init dev
+          pulumi config set aws:region ${{ env.AWS_REGION }}
 
       - name: Destroy environment
         run: |
