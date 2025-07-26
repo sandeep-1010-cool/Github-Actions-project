@@ -59,7 +59,7 @@ function createEc2WithIam(regionInfo: { name: string, env: string }) {
     }, { provider });
 
     // Get latest Amazon Linux 2 AMI
-    const ami = aws.ec2.getAmi({
+    const ami = aws.ec2.getAmiOutput({
         mostRecent: true,
         owners: ["amazon"],
         filters: [
@@ -69,18 +69,18 @@ function createEc2WithIam(regionInfo: { name: string, env: string }) {
     }, { provider });
 
     // Create EC2 instance
-    return ami.then(a =>
-        new aws.ec2.Instance(`wiz-ec2-${regionInfo.env}`, {
-            ami: a.id,
-            instanceType: "t3.micro",
-            iamInstanceProfile: instanceProfile.name,
-            userData: wizSensorUserData,
-            tags: {
-                ...baseTags,
-                "Environment": regionInfo.env,
-            },
-        }, { provider })
-    );
+    const instance = new aws.ec2.Instance(`wiz-ec2-${regionInfo.env}`, {
+        ami: ami.id,
+        instanceType: "t3.micro",
+        iamInstanceProfile: instanceProfile.name,
+        userData: wizSensorUserData,
+        tags: {
+            ...baseTags,
+            "Environment": regionInfo.env,
+        },
+    }, { provider });
+
+    return instance;
 }
 
 // Create EC2 instances in different regions
