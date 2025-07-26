@@ -1,67 +1,105 @@
-//Task: Create 2 ec2 instances in different regions
-//Task: Create and attach IAM + instance profile to the ec2 instances
-
-
-// Import the aws module
-// Import the pulumi module
+// Task: Create and attach IAM + instance profile to the ec2 instances
+// Task: Create 2 ec2 instances in different regions
+// Task: Apply standardized AWS tags + environment names: "dev", "test"
+// Task: Use init scripts to install Wiz Sensor
+// Task: Export the EC2 instance IDs
 
 import * as aws from "@pulumi/aws";
-import * as pulumi from "@pulumi/pulumi";
 
-// Define the regions to deploy EC2 instances in
-const regions = ["us-east-1", "us-west-1"] as const;
+// Define regions and environment names
+const regions = [
+    { name: "us-east-1", env: "dev" },
+    { name: "us-west-2", env: "test" }
+];
 
-// Create a reusable IAM role and instance profile for EC2
-const ec2AssumeRolePolicy = aws.iam.getPolicyDocumentOutput({
-    statements: [{
-        effect: "Allow",
-        principals: [{
-            type: "Service",
-            identifiers: ["ec2.amazonaws.com"],
-        }],
-        actions: ["sts:AssumeRole"],
-    }],
-});
+// Standardized AWS tags
+const baseTags = {
+    "Project": "WizSensorDeployment",
+    "Owner": "YourTeam",
+    "CostCenter": "12345"
+};
 
-// Create an IAM role for EC2 with a standard assume role policy
-const iamRole = new aws.iam.Role("my-ec2-instance-role", {
-    assumeRolePolicy: ec2AssumeRolePolicy.json,
-});
+// User data script to install Wiz Sensor (replace with actual script as needed)
+const wizSensorUserData = `#!/bin/bash
+echo "Installing Wiz Sensor..."
+curl -o wiz-installer.sh https://wiz-installer.s3.amazonaws.com/wiz-installer.sh
+chmod +x wiz-installer.sh
+./wiz-installer.sh --install
+`;
 
-// Create an instance profile for the EC2 role
-const instanceProfile = new aws.iam.InstanceProfile("my-ec2-instance-profile", {
-    role: iamRole.name,
-});
+// Helper function to create resources for a region
+function createEc2WithIam(regionInfo: { name: string, env: string }) {
+    // Create a provider for the specific region
+    const provider = new aws.Provider(`provider-${regionInfo.env}`, {
+        region: regionInfo.name,
+    });
 
-// Helper to create resources per region
-function createRegionResources(region: string) {
-    const provider = new aws.Provider(`provider-${region}`, { region });
+    // Create IAM role
+    const role = new aws.iam.Role(`wiz-role-${regionInfo.env}`, {
+        assumeRolePolicy: aws.iam.assumeRolePolicyForPrincipal({ Service: "ec2.amazonaws.com" }),
+        tags: {
+            ...baseTags,
+            "Environment": regionInfo.env,
+        },
+    }, { provider });
 
-    const ami = aws.ec2.getAmiOutput({
+    // Attach a managed policy (e.g., AmazonSSMManagedInstanceCore for SSM access)
+    new aws.iam.RolePolicyAttachment(`wiz-role-attach-${regionInfo.env}`, {
+        role: role.name,
+        policyArn: "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore",
+    }, { provider });
+
+    // Create instance profile  
+    const instanceProfile = new aws.iam.InstanceProfile(`wiz-profile-${regionInfo.env}`, {
+        role: role.name,
+        tags: {
+            ...baseTags,
+            "Environment": regionInfo.env,
+        },
+    }, { provider });
+
+    // Get latest Amazon Linux 2 AMI
+    const ami = aws.ec2.getAmi({
         mostRecent: true,
         owners: ["amazon"],
         filters: [
             { name: "name", values: ["amzn2-ami-hvm-*-x86_64-gp2"] },
+            { name: "state", values: ["available"] },
         ],
-    }, { provider }).id;
-
-    const instance = new aws.ec2.Instance(`my-ec2-instance-${region}`, {
-        ami,
-        instanceType: "t2.micro",
-        iamInstanceProfile: instanceProfile.name,
-        tags: {
-            Name: `my-ec2-instance-${region}`,
-        },
     }, { provider });
 
-    return { provider, ami, instance };
+    // Create EC2 instance
+    return ami.then(a =>
+        new aws.ec2.Instance(`wiz-ec2-${regionInfo.env}`, {
+            ami: a.id,
+            instanceType: "t3.micro",
+            iamInstanceProfile: instanceProfile.name,
+            userData: wizSensorUserData,
+            tags: {
+                ...baseTags,
+                "Environment": regionInfo.env,
+            },
+        }, { provider })
+    );
 }
 
-// Create resources for each region and export instance IDs
-const regionResources = Object.fromEntries(
-    regions.map(region => [region, createRegionResources(region)])
-);
+// Create EC2 instances in different regions
+const instances = regions.map(createEc2WithIam);
 
-export const ec2InstanceUsEast1Id = regionResources["us-east-1"].instance.id;
-export const ec2InstanceUsWest1Id = regionResources["us-west-1"].instance.id;
+// Export the EC2 instance IDs
+export const ec2InstanceUsEast1Id = instances[0].id;
+export const ec2InstanceUsWest2Id = instances[1].id;
+
+
+
+
+
+
+
+
+
+
+
+
+
 
