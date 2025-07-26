@@ -1,0 +1,128 @@
+name: Resource Cleanup Workflow
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to cleanup'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+      confirm_destroy:
+        description: 'Confirm you want to destroy all resources (type YES to confirm)'
+        required: true
+        type: string
+        pattern: '^YES$'
+        pattern-error: 'You must type YES to confirm destruction'
+
+env:
+  PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+  AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+  AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+  AWS_REGION: ${{ secrets.AWS_REGION || 'us-east-1' }}
+
+jobs:
+  validate-destroy:
+    name: Validate Destruction Request
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate Confirmation
+        run: |
+          if [ "${{ github.event.inputs.confirm_destroy }}" != "YES" ]; then
+            echo "❌ Destruction not confirmed. You must type 'YES' to proceed."
+            exit 1
+          fi
+          echo "✅ Destruction confirmed for environment: ${{ github.event.inputs.environment }}"
+
+      - name: Show Resources to be Destroyed
+        run: |
+          echo "⚠️  WARNING: This will destroy ALL resources in environment: ${{ github.event.inputs.environment }}"
+          echo "📋 Resources that will be destroyed:"
+          echo "   - S3 Buckets"
+          echo "   - IAM Roles (if any)"
+          echo "   - Other AWS resources created by Pulumi"
+          echo ""
+          echo "🔴 This action cannot be undone!"
+
+  destroy-resources:
+    name: Destroy Resources
+    runs-on: ubuntu-latest
+    needs: validate-destroy
+    environment: ${{ github.event.inputs.environment }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install dependencies
+        run: |
+          cd pulumi_project
+          npm install
+
+      - name: Install Pulumi
+        uses: pulumi/setup-pulumi@v2
+
+      - name: Select Stack
+        run: |
+          cd pulumi_project
+          pulumi stack select ${{ github.event.inputs.environment }} || echo "Stack ${{ github.event.inputs.environment }} not found"
+
+      - name: Preview Destruction
+        run: |
+          cd pulumi_project
+          echo "🔍 Previewing resources to be destroyed..."
+          pulumi preview --stack ${{ github.event.inputs.environment }} --diff
+        env:
+          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ secrets.AWS_REGION || 'us-east-1' }}
+
+      - name: Destroy Resources
+        run: |
+          cd pulumi_project
+          echo "🗑️  Destroying resources in environment: ${{ github.event.inputs.environment }}"
+          pulumi destroy --yes --stack ${{ github.event.inputs.environment }}
+        env:
+          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ secrets.AWS_REGION || 'us-east-1' }}
+
+      - name: Verify Destruction
+        run: |
+          cd pulumi_project
+          echo "✅ Verifying resources have been destroyed..."
+          pulumi stack --show-urns --stack ${{ github.event.inputs.environment }} || echo "Stack is empty or doesn't exist"
+
+  cleanup-notification:
+    name: Cleanup Notification
+    runs-on: ubuntu-latest
+    needs: destroy-resources
+    if: always()
+    steps:
+      - name: Success Notification
+        if: needs.destroy-resources.result == 'success'
+        run: |
+          echo "✅ Resources successfully destroyed in environment: ${{ github.event.inputs.environment }}"
+          echo "📅 Cleanup completed at: $(date)"
+          echo "👤 Triggered by: ${{ github.actor }}"
+
+      - name: Failure Notification
+        if: needs.destroy-resources.result == 'failure'
+        run: |
+          echo "❌ Resource destruction failed for environment: ${{ github.event.inputs.environment }}"
+          echo "📅 Failed at: $(date)"
+          echo "👤 Triggered by: ${{ github.actor }}"
+          echo "🔍 Check the logs above for details" 
