@@ -21,6 +21,7 @@ on:
           - preview
           - diagram
           - detailed
+          - safe-diagram
 
 env:
   PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
@@ -95,30 +96,56 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_REGION: ${{ secrets.AWS_REGION || 'us-east-1' }}
 
-      - name: Generate Resource Summary
+      - name: Generate Visual Diagram
         if: github.event.inputs.review_type == 'diagram'
         run: |
           cd pulumi_project
-          echo "📊 Infrastructure Resource Summary"
-          echo "================================="
+          echo "📊 Generating Visual Infrastructure Diagram..."
+          echo "🚀 Deploying resources to create visual diagram in Pulumi Console"
+          echo "📈 This will create actual resources and generate visual diagrams"
           echo ""
-          echo "🌍 Regions: us-east-1 (dev), us-west-2 (test)"
-          echo "🖥️  EC2 Instances: 2 (t3.micro)"
-          echo "🔐 IAM Roles: 2 (one per region)"
-          echo "👤 Instance Profiles: 2 (one per region)"
-          echo "🏷️  Tags: Environment, Project, Owner, CostCenter"
+          echo "⚠️  WARNING: This will create/update actual AWS resources!"
+          echo "💰 You will be charged for the resources created"
           echo ""
-          echo "📋 Resource Breakdown:"
-          echo "====================="
-          pulumi preview --stack ${{ github.event.inputs.stack }} > diagram-preview.txt
-          echo "EC2 Instances:"
-          cat diagram-preview.txt | grep "aws:ec2/instance" || echo "  - No EC2 instances found"
+          echo "🔗 Pulumi Console URL will be available after deployment"
+          echo "📊 Visual diagrams will be available in the Pulumi Console"
           echo ""
-          echo "IAM Resources:"
-          cat diagram-preview.txt | grep "aws:iam" || echo "  - No IAM resources found"
+          # Deploy to create visual diagrams
+          pulumi up --stack ${{ github.event.inputs.stack }} --yes --show-replacement-steps
           echo ""
-          echo "Security Groups:"
-          cat diagram-preview.txt | grep "aws:ec2/securityGroup" || echo "  - No security groups found"
+          echo "✅ Deployment completed!"
+          echo "📊 Check the Pulumi Console for visual diagrams:"
+          echo "   https://app.pulumi.com"
+        env:
+          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ secrets.AWS_REGION || 'us-east-1' }}
+
+      - name: Generate Safe Diagram Preview
+        if: github.event.inputs.review_type == 'safe-diagram'
+        run: |
+          cd pulumi_project
+          echo "📊 Safe Infrastructure Diagram Preview"
+          echo "===================================="
+          echo ""
+          echo "🔍 This will show what resources would be created"
+          echo "📈 Use 'diagram' option to actually deploy and see visual diagrams"
+          echo ""
+          echo "📋 Resource Summary:"
+          echo "==================="
+          pulumi preview --stack ${{ github.event.inputs.stack }} > safe-diagram-preview.txt
+          echo "🏗️  Resources to be created:"
+          cat safe-diagram-preview.txt | grep -E "(create|update|delete|replace)" || echo "No changes detected"
+          echo ""
+          echo "📊 Resource Types:"
+          echo "=================="
+          cat safe-diagram-preview.txt | grep -E "aws:" | head -20 || echo "No AWS resources found"
+          echo ""
+          echo "💡 To see actual visual diagrams:"
+          echo "   1. Use the 'diagram' review type (will deploy resources)"
+          echo "   2. Or manually run: pulumi up --stack ${{ github.event.inputs.stack }}"
+          echo "   3. Then visit: https://app.pulumi.com"
         env:
           PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
