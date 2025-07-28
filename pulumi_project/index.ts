@@ -78,6 +78,10 @@ function createEc2WithIam(regionInfo: { name: string, env: string }) {
             ...baseTags,
             "Environment": regionInfo.env,
         },
+        // Add instance name
+        instanceTags: {
+            Name: `wiz-sensor-${regionInfo.env}-${regionInfo.name}`,
+        },
     }, { provider });
 
     return instance;
