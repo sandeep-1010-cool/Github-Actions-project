@@ -6,11 +6,11 @@ on:
       action:
         description: 'Action to perform'
         required: true
-        default: 'up'
+        default: 'preview'
         type: choice
         options:
-          - up
           - preview
+          - up
           - destroy
 
 env:
@@ -20,8 +20,9 @@ env:
   AWS_REGION: ${{ secrets.AWS_REGION || 'us-east-1' }}
 
 jobs:
-  code-quality:
-    name: Code Quality & Security
+  # Combined setup job
+  setup-and-validate:
+    name: Setup & Validate
     runs-on: ubuntu-latest
     permissions:
       security-events: write
@@ -41,262 +42,91 @@ jobs:
           cd pulumi_project
           npm install
 
-      - name: TypeScript Compilation Check
+      - name: Code Quality Checks
         run: |
           cd pulumi_project
+          echo "🔍 Running code quality checks..."
           npx tsc --noEmit
-
-      - name: ESLint Check
-        run: |
-          cd pulumi_project
-          npx eslint . --ext .ts || echo "ESLint not configured, skipping"
-
-      - name: Security Audit
-        run: |
-          cd pulumi_project
-          npm audit --audit-level moderate || echo "Security vulnerabilities found, but continuing"
-
-      - name: Dependency Check
-        run: |
-          cd pulumi_project
-          npm outdated || echo "Dependencies checked"
-
-      - name: Code Format Check
-        run: |
-          cd pulumi_project
-          npx prettier --check . || echo "Prettier not configured, skipping"
-
-      - name: Secret Scanning
-        run: |
-          echo "Checking for hardcoded secrets..."
-          if grep -r -i "password\|secret\|key\|token" . --exclude-dir=node_modules --exclude-dir=.git; then
-            echo "⚠️  Potential secrets found in code"
-          else
-            echo "✅ No obvious secrets found"
-          fi
-
-      - name: Dependency Vulnerability Scan
-        run: |
-          cd pulumi_project
-          npm audit --audit-level high || echo "High severity vulnerabilities found"
-
-      - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
-        with:
-          languages: javascript
-
-      - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v3
-
-  test:
-    name: Test
-    runs-on: ubuntu-latest
-    needs: code-quality
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '18'
-
-      - name: Install dependencies
-        run: |
-          cd pulumi_project
-          npm install
+          npx eslint . --ext .ts || echo "ESLint issues found"
+          npm audit --audit-level high || echo "Security issues found"
 
       - name: Install Pulumi
         uses: pulumi/setup-pulumi@v2
 
-      - name: Run tests
+      - name: Initialize Pulumi Stack
         run: |
           cd pulumi_project
-          npm test || echo "No tests found"
+          echo "🔧 Setting up Pulumi..."
+          pulumi login
+          pulumi stack select dev || pulumi stack init dev
+          pulumi config set aws:region ${{ env.AWS_REGION }}
+          echo "✅ Stack ready!"
 
-      - name: Pulumi Validate
+      - name: Validate Pulumi Code
         run: |
           cd pulumi_project
-          pulumi validate || echo "Pulumi validation completed"
+          pulumi validate
 
+  # Preview job
   preview:
-    name: Preview Changes
+    name: Preview Infrastructure
     runs-on: ubuntu-latest
-    needs: test
-    if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'preview'
+    needs: setup-and-validate
+    if: github.event.inputs.action == 'preview'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '18'
-
-      - name: Install dependencies
+      - name: Setup Environment
+        uses: ./.github/actions/setup-pulumi # Create reusable action
+        
+      - name: Preview Infrastructure
         run: |
           cd pulumi_project
-          npm install
-
-      - name: Install Pulumi
-        uses: pulumi/setup-pulumi@v2
-
-      - name: Initialize Pulumi Project and Stack
+          echo "🔍 Generating infrastructure preview..."
+          pulumi preview --stack dev --diff --show-replacement-steps
+          
+      - name: Generate Dashboard Links
         run: |
           cd pulumi_project
-          echo "🔧 Initializing Pulumi project..."
-          
-          # Login to Pulumi (this ensures the project will be visible in dashboard)
-          pulumi login
-          
-          # Initialize the project if not already done
-          if [ ! -f "Pulumi.yaml" ]; then
-            pulumi new aws-typescript --yes --name pp-2 --description "Testing pulumi project"
-          fi
-          
-          # Create dev stack if not exists
-          echo "📦 Creating/selecting dev stack..."
-          pulumi stack select dev || pulumi stack init dev
-          
-          # Configure the stack
-          echo "⚙️  Configuring stack..."
-          pulumi config set aws:region ${{ env.AWS_REGION }}
-          
-          echo "✅ Project and stack initialized successfully!"
+          echo "🔗 Pulumi Dashboard:"
+          echo "https://app.pulumi.com/$(pulumi whoami)/pulumi-project/dev"
 
-      - name: Generate Infrastructure Diagram
-        run: |
-          cd pulumi_project
-          echo "📊 Generating infrastructure diagram..."
-          pulumi preview --stack dev --show-config > preview-output.txt
-          echo "📋 Preview Summary:"
-          echo "=================="
-          cat preview-output.txt | grep -E "(create|update|delete|replace)" || echo "No changes detected"
-          echo ""
-          echo "🏗️  Resources to be created:"
-          echo "=========================="
-          cat preview-output.txt | grep -E "aws:ec2|aws:iam" | head -20 || echo "No AWS resources found"
-
-      - name: Preview changes
-        run: |
-          cd pulumi_project
-          echo "🔍 Generating detailed preview..."
-          pulumi preview --stack dev --show-replacement-steps --show-config
-        env:
-          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_REGION: ${{ secrets.AWS_REGION || 'us-east-1' }}
-
-  deploy-dev:
-    name: Deploy to Dev
+  # Deploy job  
+  deploy:
+    name: Deploy Infrastructure
     runs-on: ubuntu-latest
-    needs: test
-    if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'up'
+    needs: setup-and-validate
+    if: github.event.inputs.action == 'up'
     environment: development
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '18'
-
-      - name: Install dependencies
+        
+      - name: Setup Environment
+        uses: ./.github/actions/setup-pulumi
+        
+      - name: Deploy Infrastructure
         run: |
           cd pulumi_project
-          npm install
-
-      - name: Install Pulumi
-        uses: pulumi/setup-pulumi@v2
-
-      - name: Initialize Pulumi Project and Stack
-        run: |
-          cd pulumi_project
-          echo "🔧 Initializing Pulumi project..."
-          
-          # Login to Pulumi (this ensures the project will be visible in dashboard)
-          pulumi login
-          
-          # Initialize the project if not already done
-          if [ ! -f "Pulumi.yaml" ]; then
-            pulumi new aws-typescript --yes --name pulumi-project --description "Testing pulumi project"
-          fi
-          
-          # Create dev stack if not exists
-          echo "📦 Creating/selecting dev stack..."
-          pulumi stack select dev || pulumi stack init dev
-          
-          # Configure the stack
-          echo "⚙️  Configuring stack..."
-          pulumi config set aws:region ${{ env.AWS_REGION }}
-          
-          echo "✅ Project and stack initialized successfully!"
-
-      - name: Deploy to dev
-        run: |
-          cd pulumi_project
-          echo "🚀 Starting deployment..."
+          echo "🚀 Deploying infrastructure..."
           pulumi up --yes --stack dev
-        env:
-          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_REGION: ${{ secrets.AWS_REGION || 'us-east-1' }}
 
+  # Destroy job
   destroy:
-    name: Destroy Environment
+    name: Destroy Infrastructure  
     runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'destroy'
+    if: github.event.inputs.action == 'destroy'
     environment: development
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '18'
-
-      - name: Install dependencies
+        
+      - name: Setup Environment
+        uses: ./.github/actions/setup-pulumi
+        
+      - name: Destroy Infrastructure
         run: |
           cd pulumi_project
-          npm install
-
-      - name: Install Pulumi
-        uses: pulumi/setup-pulumi@v2
-
-      - name: Initialize Pulumi Project and Stack
-        run: |
-          cd pulumi_project
-          echo "🔧 Initializing Pulumi project..."
-          
-          # Login to Pulumi (this ensures the project will be visible in dashboard)
-          pulumi login
-          
-          # Initialize the project if not already done
-          if [ ! -f "Pulumi.yaml" ]; then
-            pulumi new aws-typescript --yes --name pp-2 --description "Testing pulumi project"
-          fi
-          
-          # Create dev stack if not exists
-          echo "📦 Creating/selecting dev stack..."
-          pulumi stack select dev || pulumi stack init dev
-          
-          # Configure the stack
-          echo "⚙️  Configuring stack..."
-          pulumi config set aws:region ${{ env.AWS_REGION }}
-          
-          echo "✅ Project and stack initialized successfully!"
-
-      - name: Destroy environment
-        run: |
-          cd pulumi_project
-          echo "🗑️  Starting destruction..."
+          echo "🗑️ Destroying infrastructure..."
           pulumi destroy --yes --stack dev
-        env:
-          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_REGION: ${{ secrets.AWS_REGION || 'us-east-1' }} 

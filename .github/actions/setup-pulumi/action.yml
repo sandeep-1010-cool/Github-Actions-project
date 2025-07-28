@@ -1,0 +1,26 @@
+name: 'Setup Pulumi Environment'
+description: 'Sets up Node.js, installs dependencies, and initializes Pulumi'
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+    
+    - name: Install dependencies
+      shell: bash
+      run: |
+        cd pulumi_project
+        npm install
+    
+    - name: Install Pulumi
+      uses: pulumi/setup-pulumi@v2
+    
+    - name: Initialize Stack
+      shell: bash
+      run: |
+        cd pulumi_project
+        pulumi login
+        pulumi stack select dev || pulumi stack init dev
+        pulumi config set aws:region ${{ env.AWS_REGION }}
