@@ -21,6 +21,8 @@ runs:
       shell: bash
       run: |
         cd pulumi_project
+        echo "🔧 Setting up Pulumi environment..."
         pulumi login
         pulumi stack select dev || pulumi stack init dev
         pulumi config set aws:region ${{ env.AWS_REGION }}
+        echo "✅ Pulumi environment ready!"
