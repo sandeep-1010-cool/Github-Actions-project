@@ -141,6 +141,29 @@ jobs:
       - name: Install Pulumi
         uses: pulumi/setup-pulumi@v2
 
+      - name: Initialize Pulumi Project and Stack
+        run: |
+          cd pulumi_project
+          echo "🔧 Initializing Pulumi project..."
+          
+          # Login to Pulumi (this ensures the project will be visible in dashboard)
+          pulumi login
+          
+          # Initialize the project if not already done
+          if [ ! -f "Pulumi.yaml" ]; then
+            pulumi new aws-typescript --yes --name pp-2 --description "Testing pulumi project"
+          fi
+          
+          # Create dev stack if not exists
+          echo "📦 Creating/selecting dev stack..."
+          pulumi stack select dev || pulumi stack init dev
+          
+          # Configure the stack
+          echo "⚙️  Configuring stack..."
+          pulumi config set aws:region ${{ env.AWS_REGION }}
+          
+          echo "✅ Project and stack initialized successfully!"
+
       - name: Generate Infrastructure Diagram
         run: |
           cd pulumi_project
@@ -153,12 +176,6 @@ jobs:
           echo "🏗️  Resources to be created:"
           echo "=========================="
           cat preview-output.txt | grep -E "aws:ec2|aws:iam" | head -20 || echo "No AWS resources found"
-
-      - name: Create dev stack if not exists
-        run: |
-          cd pulumi_project
-          pulumi stack select dev || pulumi stack init dev
-          pulumi config set aws:region ${{ env.AWS_REGION }}
 
       - name: Preview changes
         run: |
@@ -194,15 +211,33 @@ jobs:
       - name: Install Pulumi
         uses: pulumi/setup-pulumi@v2
 
-      - name: Create dev stack if not exists
+      - name: Initialize Pulumi Project and Stack
         run: |
           cd pulumi_project
+          echo "🔧 Initializing Pulumi project..."
+          
+          # Login to Pulumi (this ensures the project will be visible in dashboard)
+          pulumi login
+          
+          # Initialize the project if not already done
+          if [ ! -f "Pulumi.yaml" ]; then
+            pulumi new aws-typescript --yes --name pulumi-project --description "Testing pulumi project"
+          fi
+          
+          # Create dev stack if not exists
+          echo "📦 Creating/selecting dev stack..."
           pulumi stack select dev || pulumi stack init dev
+          
+          # Configure the stack
+          echo "⚙️  Configuring stack..."
           pulumi config set aws:region ${{ env.AWS_REGION }}
+          
+          echo "✅ Project and stack initialized successfully!"
 
       - name: Deploy to dev
         run: |
           cd pulumi_project
+          echo "🚀 Starting deployment..."
           pulumi up --yes --stack dev
         env:
           PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
@@ -232,15 +267,33 @@ jobs:
       - name: Install Pulumi
         uses: pulumi/setup-pulumi@v2
 
-      - name: Create dev stack if not exists
+      - name: Initialize Pulumi Project and Stack
         run: |
           cd pulumi_project
+          echo "🔧 Initializing Pulumi project..."
+          
+          # Login to Pulumi (this ensures the project will be visible in dashboard)
+          pulumi login
+          
+          # Initialize the project if not already done
+          if [ ! -f "Pulumi.yaml" ]; then
+            pulumi new aws-typescript --yes --name pp-2 --description "Testing pulumi project"
+          fi
+          
+          # Create dev stack if not exists
+          echo "📦 Creating/selecting dev stack..."
           pulumi stack select dev || pulumi stack init dev
+          
+          # Configure the stack
+          echo "⚙️  Configuring stack..."
           pulumi config set aws:region ${{ env.AWS_REGION }}
+          
+          echo "✅ Project and stack initialized successfully!"
 
       - name: Destroy environment
         run: |
           cd pulumi_project
+          echo "🗑️  Starting destruction..."
           pulumi destroy --yes --stack dev
         env:
           PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
