@@ -78,7 +78,7 @@ jobs:
           echo ""
           echo "🏗️  Resources to be created:"
           echo "============================"
-          pulumi preview --stack ${{ github.event.inputs.stack }} --show-urns > detailed-preview.txt
+          pulumi preview --stack ${{ github.event.inputs.stack }} > detailed-preview.txt
           cat detailed-preview.txt | grep -E "(create|update|delete|replace)" || echo "No changes detected"
           echo ""
           echo "🔧 Resource Details:"
@@ -110,7 +110,7 @@ jobs:
           echo ""
           echo "📋 Resource Breakdown:"
           echo "====================="
-          pulumi preview --stack ${{ github.event.inputs.stack }} --show-urns > diagram-preview.txt
+          pulumi preview --stack ${{ github.event.inputs.stack }} > diagram-preview.txt
           echo "EC2 Instances:"
           cat diagram-preview.txt | grep "aws:ec2/instance" || echo "  - No EC2 instances found"
           echo ""
