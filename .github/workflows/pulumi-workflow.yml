@@ -60,6 +60,7 @@ jobs:
           pulumi login
           pulumi stack select dev || pulumi stack init dev
           pulumi config set aws:region ${{ env.AWS_REGION }}
+          pulumi config set pulumi:insights true
           echo "✅ Stack ready!"
 
       - name: Validate Pulumi Code
@@ -115,6 +116,7 @@ jobs:
         run: |
           cd pulumi_project
           echo "🚀 Deploying infrastructure..."
+          pulumi config set pulumi:insights true
           pulumi up --yes --stack dev
         env:
           PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}

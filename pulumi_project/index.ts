@@ -87,9 +87,24 @@ function createEc2WithIam(regionInfo: { name: string, env: string }) {
 // Create EC2 instances in different regions
 const instances = regions.map(createEc2WithIam);
 
-// Export the EC2 instance IDs
+// Export the EC2 instance IDs with better handling
 export const ec2InstanceUsEast1Id = instances[0].id;
 export const ec2InstanceUsWest2Id = instances[1].id;
+
+// Export additional useful information
+export const instanceNames = instances.map((instance, index) => ({
+    region: regions[index].name,
+    environment: regions[index].env,
+    instanceId: instance.id,
+    instanceName: `wiz-sensor-${regions[index].env}-${regions[index].name}`
+}));
+
+// Export stack information
+export const stackInfo = {
+    totalInstances: instances.length,
+    regions: regions.map(r => r.name),
+    environments: regions.map(r => r.env)
+};
 
 
 
