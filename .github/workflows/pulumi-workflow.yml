@@ -145,7 +145,7 @@ jobs:
         run: |
           cd pulumi_project
           echo "📊 Generating infrastructure diagram..."
-          pulumi preview --stack dev --show-urns --show-config > preview-output.txt
+          pulumi preview --stack dev --show-config > preview-output.txt
           echo "📋 Preview Summary:"
           echo "=================="
           cat preview-output.txt | grep -E "(create|update|delete|replace)" || echo "No changes detected"
