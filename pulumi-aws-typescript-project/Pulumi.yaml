@@ -1,0 +1,3 @@
+name: pulumi-aws-typescript-project
+runtime: nodejs
+description: My first AWS TypeScript project

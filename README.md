@@ -255,7 +255,42 @@ nano index.ts  # Terminal editor
 
 **Update the content:**
 
-> **AI Prompt:** "Create an enhanced TypeScript Pulumi code that creates an S3 bucket with static website hosting and multiple HTML pages. Include: 1) An S3 bucket with website configuration, 2) An index.html page with a title 'My Pulumi App', heading 'Hello from Pulumi + TypeScript!', description about Infrastructure as Code, and current timestamp, 3) An about.html page with information about the app being built with Pulumi, TypeScript, and AWS S3, plus a link back to index.html, 4) Export bucket name, main website endpoint, and about page URL."
+> **AI Prompt:** "Create a comprehensive TypeScript Pulumi code for AWS multi-region EC2 deployment with the following requirements:
+> 
+> 1. **Multi-Region Setup**: Deploy 2 EC2 instances across 2 AWS regions (us-west-2 and us-east-1)
+> 
+> 2. **IAM Configuration**: 
+>    - Create IAM roles with necessary permissions for EC2 instances
+>    - Create instance profiles and attach IAM roles
+>    - Include policies for EC2, CloudWatch, and Systems Manager access
+> 
+> 3. **EC2 Instance Configuration**:
+>    - Use t3.micro instance type
+>    - Latest Amazon Linux 2 AMI
+>    - Attach the created instance profiles
+>    - Configure security groups allowing SSH (port 22) and HTTP (port 80)
+> 
+> 4. **Wiz Sensor Installation**:
+>    - Create user data scripts that install Wiz sensor on instance startup
+>    - Include system updates and basic security configurations
+>    - Add logging for installation verification
+> 
+> 5. **Standardized AWS Tags**:
+>    - Apply consistent tags across all resources
+>    - Include: Environment (dev/test), Project, Owner, CostCenter, CreatedBy
+>    - Use environment names 'dev' for us-west-2 and 'test' for us-east-1
+> 
+> 6. **Resource Organization**:
+>    - Use clear naming conventions
+>    - Group related resources logically
+>    - Include proper TypeScript interfaces for configuration
+> 
+> 7. **Outputs**:
+>    - Export instance IDs, public IPs, and regions
+>    - Export IAM role ARNs
+>    - Export security group IDs
+> 
+> Include proper error handling, resource dependencies, and TypeScript type definitions. Structure the code with functions for reusability and maintainability."
 
 ### **Deploy Updates**
 ```bash
@@ -265,9 +300,8 @@ pulumi preview
 # Deploy updates
 pulumi up
 
-# Test the updated website
-curl $(pulumi stack output bucketEndpoint)
-curl $(pulumi stack output aboutPage)
+# Test the updated infrastructure
+pulumi stack output
 ```
 
 ---
